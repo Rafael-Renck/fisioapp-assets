@@ -1,16 +1,27 @@
-import Link from "next/link";
+"use client";
 
-const cards = [
-  ["👥", "Pacientes", "Cadastros e prontuários", "/pacientes"],
-  ["📅", "Agenda", "Próximos atendimentos", "#"],
-  ["📈", "Evoluções", "Acompanhamento clínico", "#"],
-];
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Icon } from "../components/icon";
+import { usePatients } from "../components/patients-provider";
 
 export default function Home() {
-  return <main className="shell">
-    <header className="topbar"><div><span className="eyebrow">FISIOAPP</span><h1>Olá, Dra. Cristiane</h1></div><button className="avatar">CP</button></header>
-    <section className="hero"><p className="eyebrow">VISÃO GERAL</p><h2>Cuide da clínica com mais clareza.</h2><p className="muted">Seu espaço para organizar pacientes, agenda e evolução clínica.</p></section>
-    <section className="grid">{cards.map(([icon, title, text, href]) => <Link className="card" href={href} key={title}><span className="card-icon">{icon}</span><strong>{title}</strong><span className="muted">{text}</span><span className="arrow">→</span></Link>)}</section>
-    <nav className="bottom-nav"><Link className="active" href="/">⌂<span>Início</span></Link><Link href="/pacientes">👥<span>Pacientes</span></Link><Link href="#">▣<span>Agenda</span></Link><Link href="#">☰<span>Mais</span></Link></nav>
-  </main>;
+  const { patients } = usePatients();
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    setToday(new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Sao_Paulo" }).format(new Date()));
+  }, []);
+  return <>
+    <div className="page-heading"><div><p className="eyebrow">VISÃO GERAL</p><h1>Olá, Dra. Cristiane <span className="greeting-spark" aria-hidden="true">✦</span></h1><p className="muted">Um novo dia para fazer a diferença na vida de alguém.</p></div><div className="date-chip"><Icon name="calendar" size={18} /><span>{today || "Seu consultório"}</span></div></div>
+
+    <section className="welcome-banner" aria-labelledby="welcome-title"><div className="welcome-copy"><span className="banner-label"><span /> SEU CUIDADO EM PRIMEIRO LUGAR</span><h2 id="welcome-title">Mais leveza na rotina.<br />Mais presença no cuidado.</h2><p>Pacientes, atendimentos e histórias.<br className="desktop-only" /> Um espaço para conectar tudo que importa.</p><Link href="/pacientes?novo=1" className="button-light"><Icon name="plus" size={18} /> Cadastrar paciente <Icon name="arrow" size={18} /></Link></div><div className="banner-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-orbit orbit-three" /><svg className="plant-art" viewBox="0 0 220 250" fill="none"><path d="M110 238V64M110 188c-51 0-75-33-75-66 48 0 75 24 75 66ZM110 146c44 0 74-32 74-70-45 0-74 30-74 70ZM110 103c-33 0-57-25-57-55 35 0 57 24 57 55ZM110 65c0-26 15-46 35-55 11 28-2 50-35 55Z" stroke="currentColor" strokeWidth="1.5" /><path d="m110 186-43-33m43-7 43-38m-43-5L76 74" stroke="currentColor" strokeWidth="1.5" /></svg><span className="floating-note"><span className="note-check"><Icon name="check" size={16} /></span>Cuidar também é organizar.</span></div></section>
+
+    <section className="stats-grid" aria-label="Indicadores do consultório"><article className="stat-card"><span className="stat-icon sage"><Icon name="patients" size={22} /></span><div><span className="stat-label">Pacientes cadastrados</span><strong className="stat-value">{patients.length.toString().padStart(2, "0")}</strong><span className="stat-footnote">{patients.length ? "Sua base de cuidado está crescendo" : "Cada história começa com um cadastro"}</span></div></article><article className="stat-card"><span className="stat-icon sand"><Icon name="calendar" size={22} /></span><div><span className="stat-label">Atendimentos hoje</span><strong className="stat-value">—</strong><span className="stat-footnote">Disponível com o módulo de agenda</span></div></article><article className="stat-card"><span className="stat-icon lavender"><Icon name="notes" size={22} /></span><div><span className="stat-label">Evoluções clínicas</span><strong className="stat-value">—</strong><span className="stat-footnote">Disponível com o módulo de prontuários</span></div></article></section>
+
+    <div className="dashboard-columns"><section className="panel agenda-panel"><div className="section-heading"><div><h2>Seu dia no consultório</h2><p>Uma visão tranquila da sua rotina.</p></div><span className="status-tag">Em breve</span></div><div className="schedule-empty"><div className="calendar-illustration" aria-hidden="true"><Icon name="calendar" size={35} /><span><Icon name="heart" size={15} /></span></div><h3>Espaço para os seus próximos encontros</h3><p>Em breve, seus horários e atendimentos estarão organizados aqui, sempre à mão.</p><div className="quiet-label"><Icon name="clock" size={15} /> Estamos preparando a sua agenda</div></div><div className="panel-footnote"><Icon name="heart" size={16} /> Entre um atendimento e outro, reserve um tempo para você.</div></section>
+
+    <section className="panel shortcuts-panel"><div className="section-heading"><div><h2>Acesso rápido</h2><p>O essencial, a um toque.</p></div></div><Link href="/pacientes?novo=1" className="shortcut"><span className="shortcut-icon sage"><Icon name="plus" /></span><span><strong>Novo paciente</strong><small>Comece uma nova história de cuidado</small></span><Icon name="arrow" size={18} /></Link><Link href="/pacientes" className="shortcut"><span className="shortcut-icon pale-blue"><Icon name="patients" /></span><span><strong>Meus pacientes</strong><small>Encontre quem você acompanha</small></span><Icon name="arrow" size={18} /></Link><div className="shortcut unavailable"><span className="shortcut-icon sand"><Icon name="calendar" /></span><span><strong>Novo agendamento</strong><small>Disponível em breve</small></span></div><div className="shortcut unavailable"><span className="shortcut-icon lavender"><Icon name="notes" /></span><span><strong>Registrar evolução</strong><small>Disponível em breve</small></span></div></section></div>
+
+    <section className="getting-started"><div className="getting-started-title"><span className="small-heart"><Icon name="heart" size={20} /></span><div><h2>Seu consultório começa por aqui</h2><p>Um passo de cada vez, do seu jeito.</p></div></div><div className="steps"><Link href="/pacientes?novo=1" className={`step ${patients.length ? "complete" : ""}`}><span className="step-number">{patients.length ? <Icon name="check" size={15} /> : "1"}</span><span>Cadastrar primeiro paciente</span><Icon name="arrow" size={16} /></Link><div className="step future"><span className="step-number">2</span><span>Organizar a agenda</span><small>Em breve</small></div><div className="step future"><span className="step-number">3</span><span>Acompanhar a evolução</span><small>Em breve</small></div></div></section>
+  </>;
 }
