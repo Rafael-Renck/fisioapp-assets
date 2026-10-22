@@ -1,4 +1,5 @@
 import { errorResponse, readDb, requireObject, updateDb, validDate, type Patient } from "../../../lib/store";
+import { forbidden, physioSpace } from "../../../lib/platform";
 
 export const runtime = "nodejs";
 
@@ -18,12 +19,13 @@ function patientFields(body: Record<string, unknown>): Omit<Patient, "id" | "cre
   return { name, email, phone, birthDate, insurance, notes, pregnant, dueDate, careType, source, referringDoctor };
 }
 
-export async function GET() { return Response.json((await readDb()).patients); }
+export async function GET(request: Request) { const spaceId = await physioSpace(request); if (!spaceId) return forbidden(); return Response.json((await readDb(spaceId)).patients, { headers: { "Cache-Control": "no-store" } }); }
 
 export async function POST(request: Request) {
+  const spaceId = await physioSpace(request); if (!spaceId) return forbidden();
   try {
     const fields = patientFields(requireObject(await request.json()));
-    const patient = await updateDb(db => {
+    const patient = await updateDb(spaceId, db => {
       const number = db.patients.reduce((highest, item) => {
         const match = /^FPAC(\d+)$/.exec(item.id);
         return match ? Math.max(highest, Number(match[1])) : highest;
@@ -37,10 +39,11 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const spaceId = await physioSpace(request); if (!spaceId) return forbidden();
   try {
     const body = requireObject(await request.json());
     const fields = patientFields(body);
-    const patient = await updateDb(db => {
+    const patient = await updateDb(spaceId, db => {
       const item = db.patients.find(p => p.id === body.id);
       if (!item) throw new Error("Paciente não encontrado.");
       Object.assign(item, fields, { updatedAt: new Date().toISOString() });
@@ -51,10 +54,11 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const spaceId = await physioSpace(request); if (!spaceId) return forbidden();
   try {
     const body = requireObject(await request.json());
     if (typeof body.archived !== "boolean") throw new Error("Estado de arquivamento inválido.");
-    const patient = await updateDb(db => {
+    const patient = await updateDb(spaceId, db => {
       const item = db.patients.find(p => p.id === body.id);
       if (!item) throw new Error("Paciente não encontrado.");
       item.status = body.archived ? "Arquivado" : "";

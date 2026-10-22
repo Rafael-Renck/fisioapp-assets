@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Patient } from "../lib/store";
 
 export function patientFromForm(data: FormData): Omit<Patient, "id" | "createdAt" | "updatedAt"> {
@@ -14,10 +14,10 @@ export function patientFromForm(data: FormData): Omit<Patient, "id" | "createdAt
   };
 }
 
-const insuranceOptions = ["Bradesco Saúde", "Unimed Recife", "Unimed Intercambio", "Sulamerica", "Fisco Saúde", "Compesa", "Fachesf", "Particular"];
-
 export function PatientFields({ prefix, patient }: { prefix: string; patient?: Patient }) {
   const [pregnant, setPregnant] = useState(patient?.pregnant || false);
+  const [insuranceOptions, setInsuranceOptions] = useState<string[]>(["Particular"]);
+  useEffect(() => { fetch("/api/settings").then(response => response.ok ? response.json() : null).then(data => { if (Array.isArray(data?.insurances)) setInsuranceOptions(data.insurances); }).catch(() => undefined); }, []);
   return <div className="patient-fields">
     <div className="patient-fields-grid">
       <label htmlFor={`${prefix}-name`}>Nome completo <span aria-hidden="true">*</span><input id={`${prefix}-name`} name="name" required minLength={2} maxLength={120} autoComplete="name" placeholder="Nome do paciente" defaultValue={patient?.name || ""} /></label>

@@ -15,7 +15,7 @@ const Context = createContext<PatientsContext | null>(null);
 
 export function PatientsProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>([]);
-  useEffect(() => { fetch("/api/patients").then(response => response.json()).then(setPatients).catch(() => undefined); }, []);
+  useEffect(() => { fetch("/api/patients").then(response => response.ok ? response.json() : []).then(value => setPatients(Array.isArray(value) ? value : [])).catch(() => undefined); }, []);
   async function addPatient(patient: PatientInput) {
     const response = await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patient) });
     const saved = await response.json();
