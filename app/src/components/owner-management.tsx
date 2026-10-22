@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { SettingsSection } from "./settings-section";
 
 type PhysioSpace = {
   id: string;
@@ -53,9 +54,8 @@ export function OwnerManagement() {
     finally { setBusy(false); }
   }
 
-  return <section className="panel settings-section owner-management">
-    <h2>Fisioterapeutas</h2>
-    <p className="muted">Crie o login de cada profissional. Cada um acessa apenas seus próprios pacientes e sua agenda.</p>
+  return <SettingsSection icon="patients" title="Fisioterapeutas" description="Crie e gerencie os acessos dos profissionais" meta={`${data?.spaces.length || 0} cadastrado(s)`}>
+    <p className="muted">Cada fisioterapeuta acessa somente seus próprios pacientes e sua agenda.</p>
     {notice && <p role="status" className="success-message">{notice}</p>}
     <form className="settings-form" onSubmit={create}>
       <label>Nome do espaço<input name="name" required maxLength={120} placeholder="Consultório Ana Lima" /></label>
@@ -66,5 +66,5 @@ export function OwnerManagement() {
     </form>
     <h3>Logins cadastrados</h3>
     {data?.spaces.length ? <div className="settings-list">{data.spaces.map(space => <div className="settings-item" key={space.id}><div><strong>{space.name}</strong><p>{space.email} · {space.status === "active" ? "Ativo" : "Suspenso"}</p></div><button className="secondary" disabled={busy} onClick={() => changeStatus(space)}>{space.status === "active" ? "Suspender" : "Reativar"}</button></div>)}</div> : <p className="muted">Nenhum fisioterapeuta cadastrado.</p>}
-  </section>;
+  </SettingsSection>;
 }
