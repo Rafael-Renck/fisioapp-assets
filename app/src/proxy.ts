@@ -12,4 +12,4 @@ export async function proxy(request: NextRequest) {
   if (session.user.mustChangePassword && path !== "/configuracoes") return NextResponse.redirect(new URL("/configuracoes", request.url));
   return NextResponse.next();
 }
-export const config = { matcher: ["/", "/agenda/:path*", "/pacientes/:path*", "/configuracoes/:path*", "/admin/:path*", "/login", "/setup"] };
+export const config = { matcher: ["/", "/agenda/:path*", "/pacientes/:path*", "/prontuarios/:path*", "/configuracoes/:path*", "/admin/:path*", "/login", "/setup"] };

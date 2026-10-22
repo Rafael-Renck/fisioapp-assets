@@ -17,7 +17,14 @@ export type Config = { days: DayConfig[]; duration: number; capacity: number };
 export type Location = { id: string; name: string; address: string; active: boolean };
 export type Service = { id: string; name: string; duration: number; active: boolean };
 export type Profile = { displayName: string; registration: string; phone: string; email: string };
-export type Database = { patients: Patient[]; sessions: Session[]; blocks: Block[]; config: Config; profile: Profile; locations: Location[]; services: Service[]; insurances: string[] };
+export type AnamnesisData = { chiefComplaint: string; currentHistory: string; pastHistory: string; medications: string; physicalExam: string; goals: string; proposedTreatment: string; bodyRegions: string };
+export type EvolutionData = { date: string; description: string };
+export type TreatmentPlanData = { diagnosis: string; startDate: string; reviewDate: string; status: "Ativo" | "Pausado" | "Concluído"; goals: string[]; interventions: { description: string; frequency: string; dosage: string }[] };
+export type ClinicalEntry =
+  | { id: string; patientId: string; kind: "anamnesis"; createdAt: string; authorId: string; data: AnamnesisData }
+  | { id: string; patientId: string; kind: "evolution"; createdAt: string; authorId: string; data: EvolutionData }
+  | { id: string; patientId: string; kind: "plan"; createdAt: string; authorId: string; data: TreatmentPlanData };
+export type Database = { patients: Patient[]; sessions: Session[]; blocks: Block[]; config: Config; profile: Profile; locations: Location[]; services: Service[]; insurances: string[]; clinicalEntries: ClinicalEntry[] };
 
 const dataDir = process.env.FISIOAPP_DATA_DIR || path.join(process.cwd(), ".data");
 function fileFor(spaceId: string) {
@@ -25,7 +32,7 @@ function fileFor(spaceId: string) {
   if (!/^[a-f0-9]{32}$/.test(spaceId)) throw new Error("Espaço inválido.");
   return path.join(dataDir, "spaces", `${spaceId}.json`);
 }
-const defaults = (): Database => ({ patients: [], sessions: [], blocks: [], config: { days: Array.from({ length: 7 }, (_, day) => ({ active: day >= 2 && day <= 5, start: "07:00", end: "17:00" })), duration: 60, capacity: 5 }, profile: { displayName: "", registration: "", phone: "", email: "" }, locations: [], services: [], insurances: ["Particular"] });
+const defaults = (): Database => ({ patients: [], sessions: [], blocks: [], config: { days: Array.from({ length: 7 }, (_, day) => ({ active: day >= 2 && day <= 5, start: "07:00", end: "17:00" })), duration: 60, capacity: 5 }, profile: { displayName: "", registration: "", phone: "", email: "" }, locations: [], services: [], insurances: ["Particular"], clinicalEntries: [] });
 let queue: Promise<unknown> = Promise.resolve();
 
 export async function readDb(spaceId: string): Promise<Database> {
