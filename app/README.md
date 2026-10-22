@@ -1,6 +1,6 @@
 # FisioApp (protótipo de espaços individuais)
 
-Execute `npm ci` e `npm run dev -- --hostname 0.0.0.0 --port 3000` nesta pasta. Abra `/setup` no primeiro acesso. O servidor cria um código de instalação em `.data/setup-token` (ou em `$FISIOAPP_DATA_DIR/setup-token`). Leia esse arquivo no servidor e use o código para criar a conta do dono. O arquivo é removido após a criação da conta. Nunca envie o código nem senhas para o repositório.
+Execute `npm ci` e `npm run dev -- --hostname 0.0.0.0 --port 3000` nesta pasta. A página inicial abre no login. Somente no primeiro acesso do administrador, use o link para `/setup`. O servidor cria um código de instalação em `.data/setup-token` (ou em `$FISIOAPP_DATA_DIR/setup-token`). Leia esse arquivo no servidor e use o código para criar a sua conta de administrador. O arquivo é removido após a criação da conta e o link de configuração desaparece do login. Nunca envie o código nem senhas para o repositório.
 
 No painel do dono (`/admin`), crie um espaço para cada fisioterapeuta com e-mail e senha temporária. O profissional troca a senha ao entrar, configura seu perfil, locais, tipos de atendimento, convênios e horários em `/configuracoes` e acessa somente pacientes e agenda do próprio espaço. Suspender um espaço encerra suas sessões de acesso. O dono vê a lista de espaços e configurações gerais, sem acessar dados clínicos.
 
