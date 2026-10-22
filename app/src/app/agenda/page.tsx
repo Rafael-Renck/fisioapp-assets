@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { usePatients } from "../../components/patients-provider";
+import { PatientFields, patientFromForm } from "../../components/patient-fields";
 import type { Block, Config, Session, Status } from "../../lib/store";
 
 const weekdayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -23,6 +24,7 @@ export default function AgendaPage() {
   const [showForm, setShowForm] = useState(false);
   const [patientView, setPatientView] = useState(false);
   const [patientId, setPatientId] = useState("");
+  const [patientFieldsVersion, setPatientFieldsVersion] = useState(0);
   const [modalNotice, setModalNotice] = useState("");
   const bookingDialog = useRef<HTMLDialogElement>(null);
   const bookingTrigger = useRef<HTMLButtonElement>(null);
@@ -39,8 +41,8 @@ export default function AgendaPage() {
     event.preventDefault();
     const form = event.currentTarget; const fields = new FormData(form);
     try {
-      const patient = await addPatient({ name: String(fields.get("name") || "").trim(), phone: String(fields.get("phone") || "").trim(), email: String(fields.get("email") || "").trim() });
-      setPatientId(patient.id); setPatientView(false); setModalNotice(`${patient.name} cadastrado. Continue o agendamento.`); form.reset();
+      const patient = await addPatient(patientFromForm(fields));
+      setPatientId(patient.id); setPatientView(false); setModalNotice(`${patient.name} cadastrado. Continue o agendamento.`); form.reset(); setPatientFieldsVersion(version => version + 1);
     } catch (error) { setModalNotice(error instanceof Error ? error.message : "Não foi possível cadastrar o paciente."); }
   }
   async function send(body: Record<string, unknown>, success: string, onError: (message: string) => void = setNotice) {
@@ -89,11 +91,11 @@ export default function AgendaPage() {
       <div className="booking-dialog-content">
         {modalNotice && <p className="booking-notice" role="status">{modalNotice}</p>}
         <div hidden={patientView}>
-          <form key={date} onSubmit={book} className="booking-form"><div className="form-grid"><label>Paciente<select name="patientId" required value={patientId} onChange={e => setPatientId(e.target.value)}><option value="" disabled>Selecione um paciente</option>{patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><div className="new-patient-action"><button type="button" className="secondary" onClick={() => { setPatientView(true); setModalNotice(""); }}>+ Cadastrar paciente</button></div><label>Data inicial<input name="date" type="date" required defaultValue={date} onChange={e => { const d = dayOf(e.target.value); setWeekdays([d]); }} /></label><label>Horário<input name="time" type="time" required defaultValue={slots[0] || "07:00"} /></label><label>Quantidade total de sessões<input name="count" type="number" min="1" max="260" defaultValue="1" required /></label></div><label>Observações<textarea name="notes" maxLength={2000} rows={3} /></label><fieldset><legend>Dias da recorrência semanal (para mais de uma sessão)</legend><div className="weekday-options">{weekdayNames.map((name, i) => <label key={name}><input type="checkbox" checked={weekdays.includes(i)} onChange={e => setWeekdays(current => e.target.checked ? [...current, i] : current.filter(d => d !== i))} /> {name}</label>)}</div></fieldset><div className="form-actions"><button type="button" className="secondary" onClick={closeBooking}>Cancelar</button><button className="primary">Salvar agendamento</button></div></form>
+          <form key={date} onSubmit={book} className="booking-form"><div className="form-grid"><label>Paciente<select name="patientId" required value={patientId} onChange={e => setPatientId(e.target.value)}><option value="" disabled>Selecione um paciente</option>{patients.filter(p => p.status !== "Arquivado").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><div className="new-patient-action"><button type="button" className="secondary" onClick={() => { setPatientView(true); setModalNotice(""); }}>+ Cadastrar paciente</button></div><label>Data inicial<input name="date" type="date" required defaultValue={date} onChange={e => { const d = dayOf(e.target.value); setWeekdays([d]); }} /></label><label>Horário<input name="time" type="time" required defaultValue={slots[0] || "07:00"} /></label><label>Quantidade total de sessões<input name="count" type="number" min="1" max="260" defaultValue="1" required /></label></div><label>Observações<textarea name="notes" maxLength={2000} rows={3} /></label><fieldset><legend>Dias da recorrência semanal (para mais de uma sessão)</legend><div className="weekday-options">{weekdayNames.map((name, i) => <label key={name}><input type="checkbox" checked={weekdays.includes(i)} onChange={e => setWeekdays(current => e.target.checked ? [...current, i] : current.filter(d => d !== i))} /> {name}</label>)}</div></fieldset><div className="form-actions"><button type="button" className="secondary" onClick={closeBooking}>Cancelar</button><button className="primary">Salvar agendamento</button></div></form>
         </div>
         <div hidden={!patientView}>
           <p className="muted">Cadastre o paciente e volte ao agendamento com os dados preenchidos.</p>
-          <form onSubmit={registerPatient} className="booking-form"><label>Nome completo<input name="name" required minLength={2} maxLength={120} autoComplete="name" /></label><label>Telefone (opcional)<input name="phone" type="tel" maxLength={30} autoComplete="tel" /></label><label>E-mail (opcional)<input name="email" type="email" maxLength={254} autoComplete="email" /></label><div className="form-actions"><button type="button" className="secondary" onClick={() => { setPatientView(false); setModalNotice(""); }}>Voltar</button><button className="primary">Salvar paciente</button></div></form>
+          <form onSubmit={registerPatient} className="booking-form"><PatientFields key={patientFieldsVersion} prefix="booking-patient" /><div className="form-actions"><button type="button" className="secondary" onClick={() => { setPatientView(false); setModalNotice(""); }}>Voltar</button><button className="primary">Salvar paciente</button></div></form>
         </div>
       </div>
     </dialog>

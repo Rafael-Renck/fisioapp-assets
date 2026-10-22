@@ -1,7 +1,13 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export type Patient = { id: string; name: string; phone: string; email: string };
+export type Patient = {
+  id: string; name: string; phone: string; email: string;
+  birthDate?: string; insurance?: string; notes?: string;
+  pregnant?: boolean; dueDate?: string; careType?: string;
+  source?: string; referringDoctor?: string; status?: string;
+  portalAccessActive?: boolean; createdAt?: string; updatedAt?: string;
+};
 export const statuses = ["Agendado", "Confirmado", "Realizado", "Cancelado pelo Paciente", "Cancelado pela Fisio", "Não Compareceu"] as const;
 export type Status = typeof statuses[number];
 export type Session = { id: string; patientId: string; date: string; time: string; duration: number; notes: string; status: Status; recurrenceId?: string };
@@ -10,7 +16,7 @@ export type DayConfig = { active: boolean; start: string; end: string };
 export type Config = { days: DayConfig[]; duration: number; capacity: number };
 export type Database = { patients: Patient[]; sessions: Session[]; blocks: Block[]; config: Config };
 
-const file = path.join(process.cwd(), ".data", "fisioapp.json");
+const file = path.join(process.env.FISIOAPP_DATA_DIR || path.join(process.cwd(), ".data"), "fisioapp.json");
 const defaults = (): Database => ({ patients: [], sessions: [], blocks: [], config: { days: Array.from({ length: 7 }, (_, day) => ({ active: day >= 2 && day <= 5, start: "07:00", end: "17:00" })), duration: 60, capacity: 5 } });
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -46,7 +52,7 @@ export function dayOf(date: string) { return new Date(`${date}T12:00:00Z`).getUT
 export function addDays(date: string, days: number) { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); }
 export function active(session: Session) { return !session.status.startsWith("Cancelado") && session.status !== "Não Compareceu"; }
 export function checkSession(db: Database, session: Session, excludeId?: string): string | null {
-  if (!db.patients.some(p => p.id === session.patientId)) return "Selecione um paciente cadastrado.";
+  if (!db.patients.some(p => p.id === session.patientId && p.status !== "Arquivado")) return "Selecione um paciente ativo.";
   if (!validDate(session.date) || minutes(session.time) < 0) return "Data ou horário inválido.";
   const start = minutes(session.time), end = start + session.duration;
   const day = db.config.days[dayOf(session.date)];
