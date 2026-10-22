@@ -2,7 +2,7 @@ import { active, addDays, checkSession, dayOf, errorResponse, minutes, readDb, r
 import { forbidden, physioSpace } from "../../../lib/platform";
 
 export const runtime = "nodejs";
-export async function GET(request: Request) { const spaceId = await physioSpace(request); if (!spaceId) return forbidden(); const { sessions, blocks, config, locations, services } = await readDb(spaceId); return Response.json({ sessions, blocks, config, locations, services }, { headers: { "Cache-Control": "no-store" } }); }
+export async function GET(request: Request) { const spaceId = await physioSpace(request); if (!spaceId) return forbidden(); const { sessions, blocks, config, locations, services, insurances } = await readDb(spaceId); return Response.json({ sessions, blocks, config, locations, services, insurances }, { headers: { "Cache-Control": "no-store" } }); }
 export async function POST(request: Request) {
   const spaceId = await physioSpace(request); if (!spaceId) return forbidden();
   try {
@@ -11,10 +11,12 @@ export async function POST(request: Request) {
       switch (body.action) {
         case "book": {
           const patientId = String(body.patientId || ""), date = String(body.date || ""), time = String(body.time || ""), notes = String(body.notes || "").trim();
-          const locationId = String(body.locationId || ""), serviceId = String(body.serviceId || "");
+          const locationId = String(body.locationId || ""), serviceId = String(body.serviceId || ""), insurance = String(body.insurance || "").trim();
           if (notes.length > 2000) throw new Error("Observações muito longas.");
           if (db.locations.some(location => location.active) && !locationId) throw new Error("Selecione um local de atendimento.");
           if (db.services.some(service => service.active) && !serviceId) throw new Error("Selecione um tipo de atendimento.");
+          if (db.insurances.length && !insurance) throw new Error("Selecione um convênio.");
+          if (insurance && !db.insurances.includes(insurance)) throw new Error("Convênio não está cadastrado nas configurações.");
           const service = db.services.find(item => item.id === serviceId && item.active);
           if (serviceId && !service) throw new Error("Tipo de atendimento inválido.");
           if (!validDate(date) || minutes(time) < 0) throw new Error("Data ou horário inválido.");
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
           for (let offset = 0; proposed.length < count && offset < 7 * 260; offset++) {
             const currentDate = addDays(date, offset);
             if (count > 1 && !days.includes(dayOf(currentDate))) continue;
-            const session: Session = { id: crypto.randomUUID(), patientId, date: currentDate, time, duration: service?.duration || db.config.duration, notes, status: "Agendado", recurrenceId, locationId, serviceId };
+            const session: Session = { id: crypto.randomUUID(), patientId, date: currentDate, time, duration: service?.duration || db.config.duration, notes, status: "Agendado", recurrenceId, locationId, serviceId, insurance };
             const conflict = checkSession({ ...db, sessions: [...db.sessions, ...proposed] }, session);
             if (conflict) throw new Error(`${currentDate}: ${conflict} Nenhuma sessão foi criada.`);
             proposed.push(session);

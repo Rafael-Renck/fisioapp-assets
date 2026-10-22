@@ -6,6 +6,8 @@ O super administrador entra no FisioApp normal, com pacientes e agenda em seu pr
 
 Em `/prontuarios`, o profissional busca um paciente e abre seu prontuário. A ficha reúne dados cadastrais, atendimentos, anamnese, evoluções e plano de tratamento. Cada evolução é um novo registro. Ao salvar novamente a anamnese ou o plano, a versão anterior permanece disponível. Pacientes arquivados podem ser consultados, mas não recebem novos registros clínicos. Os prontuários são armazenados no arquivo do respectivo espaço.
 
+Na agenda, cada atendimento de paciente ativo oferece a ação **Cadastrar evolução**, que abre o prontuário na aba Evoluções com a data da sessão. O formulário de agendamento carrega os tipos de atendimento e convênios do espaço em Configurações; o convênio escolhido fica registrado na sessão. O cadastro rápido de pacientes usa essas mesmas listas.
+
 Os dados antigos em `.data/fisioapp.json` continuam no mesmo arquivo. Quando houver dados antigos, o painel oferece atribuí-los explicitamente a um espaço. Outros espaços usam arquivos próprios em `.data/spaces/`. Contas, sessões de acesso e configurações gerais ficam em `.data/platform.json`. A pasta `.data/` está ignorada pelo Git. Faça cópias de segurança dela.
 
 Esta persistência em arquivos é adequada para desenvolvimento e validação do produto. Antes de oferecer o serviço comercialmente, migre para banco de dados com isolamento por cliente, backups automáticos, recuperação de acesso, proteção contra tentativas de login e operação segura de múltiplas instâncias.

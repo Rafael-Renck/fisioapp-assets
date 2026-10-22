@@ -10,7 +10,7 @@ export type Patient = {
 };
 export const statuses = ["Agendado", "Confirmado", "Realizado", "Cancelado pelo Paciente", "Cancelado pela Fisio", "Não Compareceu"] as const;
 export type Status = typeof statuses[number];
-export type Session = { id: string; patientId: string; date: string; time: string; duration: number; notes: string; status: Status; recurrenceId?: string; locationId?: string; serviceId?: string };
+export type Session = { id: string; patientId: string; date: string; time: string; duration: number; notes: string; status: Status; recurrenceId?: string; locationId?: string; serviceId?: string; insurance?: string };
 export type Block = { id: string; date: string; start: string; end: string; reason: string };
 export type DayConfig = { active: boolean; start: string; end: string };
 export type Config = { days: DayConfig[]; duration: number; capacity: number };

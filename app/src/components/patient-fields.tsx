@@ -16,16 +16,24 @@ export function patientFromForm(data: FormData): Omit<Patient, "id" | "createdAt
 
 export function PatientFields({ prefix, patient }: { prefix: string; patient?: Patient }) {
   const [pregnant, setPregnant] = useState(patient?.pregnant || false);
-  const [insuranceOptions, setInsuranceOptions] = useState<string[]>(["Particular"]);
-  useEffect(() => { fetch("/api/settings").then(response => response.ok ? response.json() : null).then(data => { if (Array.isArray(data?.insurances)) setInsuranceOptions(data.insurances); }).catch(() => undefined); }, []);
+  const [insuranceOptions, setInsuranceOptions] = useState<string[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
+  const [insurance, setInsurance] = useState(patient?.insurance || "");
+  const [careType, setCareType] = useState(patient?.careType && patient.careType !== "Default" ? patient.careType : "");
+  useEffect(() => {
+    fetch("/api/settings", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(data => {
+      if (Array.isArray(data?.insurances)) setInsuranceOptions(data.insurances);
+      if (Array.isArray(data?.services)) setServiceOptions(data.services.filter((item: { active: boolean }) => item.active).map((item: { name: string }) => item.name));
+    }).catch(() => undefined);
+  }, []);
   return <div className="patient-fields">
     <div className="patient-fields-grid">
       <label htmlFor={`${prefix}-name`}>Nome completo <span aria-hidden="true">*</span><input id={`${prefix}-name`} name="name" required minLength={2} maxLength={120} autoComplete="name" placeholder="Nome do paciente" defaultValue={patient?.name || ""} /></label>
       <label htmlFor={`${prefix}-birth`}>Data de nascimento<input id={`${prefix}-birth`} name="birthDate" type="date" defaultValue={patient?.birthDate || ""} /></label>
       <label htmlFor={`${prefix}-phone`}>Telefone<input id={`${prefix}-phone`} name="phone" type="tel" maxLength={30} autoComplete="tel" placeholder="(00) 00000-0000" defaultValue={patient?.phone || ""} /></label>
       <label htmlFor={`${prefix}-email`}>E-mail <span aria-hidden="true">*</span><input id={`${prefix}-email`} name="email" type="email" required maxLength={254} autoComplete="email" placeholder="paciente@email.com" defaultValue={patient?.email || ""} /></label>
-      <label htmlFor={`${prefix}-insurance`}>Convênio<input id={`${prefix}-insurance`} name="insurance" maxLength={120} list={`${prefix}-insurance-options`} defaultValue={patient?.insurance || ""} /><datalist id={`${prefix}-insurance-options`}>{insuranceOptions.map(name => <option key={name} value={name} />)}</datalist></label>
-      <label htmlFor={`${prefix}-care`}>Tipo de atendimento<input id={`${prefix}-care`} name="careType" maxLength={120} defaultValue={patient?.careType || "Default"} /></label>
+      <label htmlFor={`${prefix}-insurance`}>Convênio<select id={`${prefix}-insurance`} name="insurance" value={insurance} onChange={event => setInsurance(event.target.value)}><option value="">Selecione um convênio</option>{insurance && !insuranceOptions.includes(insurance) && <option value={insurance}>{insurance} (cadastro anterior)</option>}{insuranceOptions.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+      <label htmlFor={`${prefix}-care`}>Tipo de atendimento<select id={`${prefix}-care`} name="careType" value={careType} onChange={event => setCareType(event.target.value)}><option value="">Selecione um tipo</option>{careType && !serviceOptions.includes(careType) && <option value={careType}>{careType} (cadastro anterior)</option>}{serviceOptions.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
       <label htmlFor={`${prefix}-source`}>Origem do paciente<input id={`${prefix}-source`} name="source" maxLength={120} defaultValue={patient?.source || ""} /></label>
       <label htmlFor={`${prefix}-doctor`}>Médico indicador<input id={`${prefix}-doctor`} name="referringDoctor" maxLength={120} defaultValue={patient?.referringDoctor || ""} /></label>
     </div>
