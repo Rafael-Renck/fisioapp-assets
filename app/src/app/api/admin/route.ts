@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const platform = await readPlatform();
   const legacyFile = path.join(process.env.FISIOAPP_DATA_DIR || path.join(process.cwd(), ".data"), "fisioapp.json");
   const legacyAvailable = !platform.spaces.some(space => space.id === "legacy") && await access(legacyFile).then(() => true, () => false);
-  return noStore(Response.json({ settings: platform.settings, spaces: platform.spaces.map(space => ({ ...space, email: platform.users.find(user => user.spaceId === space.id)?.email || "" })), legacyAvailable }));
+  return noStore(Response.json({ settings: platform.settings, spaces: platform.spaces.filter(space => platform.users.some(user => user.role === "physio" && user.spaceId === space.id)).map(space => ({ ...space, email: platform.users.find(user => user.role === "physio" && user.spaceId === space.id)?.email || "" })), legacyAvailable }));
 }
 export async function POST(request: Request) {
   if (!await owner(request)) return denied();
@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
         platform.settings = { brandName, supportEmail, defaultPlan }; return platform.settings;
       }
       if (body.action === "space") {
-        const space = platform.spaces.find(item => item.id === body.id); if (!space) throw new Error("Espaço não encontrado.");
+        const space = platform.spaces.find(item => item.id === body.id && platform.users.some(user => user.role === "physio" && user.spaceId === item.id)); if (!space) throw new Error("Espaço não encontrado.");
         const name = String(body.name || "").trim(), plan = String(body.plan || "").trim();
         if (!name || name.length > 120 || !plan || plan.length > 80 || !["active", "suspended"].includes(body.status)) throw new Error("Dados do espaço inválidos.");
         Object.assign(space, { name, plan, status: body.status });

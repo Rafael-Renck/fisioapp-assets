@@ -76,20 +76,37 @@ export async function getSession(request: Request): Promise<{ user: User; space?
   const platform = await readPlatform();
   const session = platform.sessions.find(s => s.tokenHash === tokenHash(token) && s.expiresAt > Date.now());
   if (!session) return null;
-  const user = platform.users.find(u => u.id === session.userId);
+  let user = platform.users.find(u => u.id === session.userId);
   if (!user) return null;
-  const space = user.spaceId ? platform.spaces.find(s => s.id === user.spaceId) : undefined;
+  const currentSpaceId = user.spaceId;
+  let space = currentSpaceId ? platform.spaces.find(s => s.id === currentSpaceId) : undefined;
+  if (user.role === "owner" && !space) {
+    const ownerId = user.id;
+    const migrated = await updatePlatform(current => {
+      const owner = current.users.find(item => item.id === ownerId);
+      if (!owner) throw new Error("Conta não encontrada.");
+      let ownSpace = current.spaces.find(item => item.id === owner.spaceId);
+      if (!ownSpace) {
+        ownSpace = { id: randomBytes(16).toString("hex"), name: "Meu consultório", plan: "Administrador", status: "active", createdAt: new Date().toISOString() };
+        current.spaces.push(ownSpace);
+        owner.spaceId = ownSpace.id;
+      }
+      return { owner, ownSpace };
+    });
+    user = migrated.owner;
+    space = migrated.ownSpace;
+  }
   if (user.role === "physio" && (!space || space.status !== "active")) return null;
   return { user, space };
 }
 export function publicUser(user: User, space?: Space) { return { id: user.id, email: user.email, role: user.role, spaceId: user.spaceId, spaceName: space?.name, mustChangePassword: !!user.mustChangePassword }; }
 export async function physioSpace(request: Request) {
   const session = await getSession(request);
-  return session?.user.role === "physio" && !session.user.mustChangePassword ? session.space?.id || null : null;
+  return session && !session.user.mustChangePassword ? session.space?.id || null : null;
 }
 export async function settingsSpace(request: Request) {
   const session = await getSession(request);
-  return session?.user.role === "physio" ? session.space?.id || null : null;
+  return session?.space?.id || null;
 }
 export function forbidden() { return noStore(Response.json({ error: "Acesso não autorizado." }, { status: 401 })); }
 export async function ensureSetupToken() {
@@ -110,7 +127,9 @@ export async function createOwner(token: string, email: string, password: string
   const credentials = await hashPassword(password);
   const user = await updatePlatform(platform => {
     if (platform.users.some(item => item.role === "owner")) throw new Error("A conta do dono já foi criada.");
-    const item: User = { id: randomBytes(16).toString("hex"), email, ...credentials, role: "owner" };
+    const space: Space = { id: randomBytes(16).toString("hex"), name: "Meu consultório", plan: "Administrador", status: "active", createdAt: new Date().toISOString() };
+    const item: User = { id: randomBytes(16).toString("hex"), email, ...credentials, role: "owner", spaceId: space.id };
+    platform.spaces.push(space);
     platform.users.push(item);
     return item;
   });
