@@ -1,15 +1,19 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 export type Patient = { id: string; name: string; phone: string; email: string };
-type PatientsContext = { patients: Patient[]; addPatient: (patient: Omit<Patient, "id">) => void };
+type PatientsContext = { patients: Patient[]; addPatient: (patient: Omit<Patient, "id">) => Promise<void> };
 const Context = createContext<PatientsContext | null>(null);
 
 export function PatientsProvider({ children }: { children: ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>([]);
-  function addPatient(patient: Omit<Patient, "id">) {
-    setPatients(current => [...current, { ...patient, id: crypto.randomUUID() }]);
+  useEffect(() => { fetch("/api/patients").then(response => response.json()).then(setPatients).catch(() => undefined); }, []);
+  async function addPatient(patient: Omit<Patient, "id">) {
+    const response = await fetch("/api/patients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patient) });
+    const saved = await response.json();
+    if (!response.ok) throw new Error(saved.error || "Não foi possível salvar o paciente.");
+    setPatients(current => [...current, saved]);
   }
   return <Context.Provider value={{ patients, addPatient }}>{children}</Context.Provider>;
 }

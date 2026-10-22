@@ -1,0 +1,65 @@
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+export type Patient = { id: string; name: string; phone: string; email: string };
+export const statuses = ["Agendado", "Confirmado", "Realizado", "Cancelado pelo Paciente", "Cancelado pela Fisio", "Não Compareceu"] as const;
+export type Status = typeof statuses[number];
+export type Session = { id: string; patientId: string; date: string; time: string; duration: number; notes: string; status: Status; recurrenceId?: string };
+export type Block = { id: string; date: string; start: string; end: string; reason: string };
+export type DayConfig = { active: boolean; start: string; end: string };
+export type Config = { days: DayConfig[]; duration: number; capacity: number };
+export type Database = { patients: Patient[]; sessions: Session[]; blocks: Block[]; config: Config };
+
+const file = path.join(process.cwd(), ".data", "fisioapp.json");
+const defaults = (): Database => ({ patients: [], sessions: [], blocks: [], config: { days: Array.from({ length: 7 }, (_, day) => ({ active: day >= 2 && day <= 5, start: "07:00", end: "17:00" })), duration: 60, capacity: 5 } });
+let queue: Promise<unknown> = Promise.resolve();
+
+export async function readDb(): Promise<Database> {
+  try { return { ...defaults(), ...JSON.parse(await readFile(file, "utf8")) }; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaults(); throw error; }
+}
+
+export function updateDb<T>(change: (db: Database) => T | Promise<T>): Promise<T> {
+  const task = queue.then(async () => {
+    const db = await readDb();
+    const result = await change(db);
+    await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+    const temp = `${file}.${crypto.randomUUID()}.tmp`;
+    await writeFile(temp, JSON.stringify(db, null, 2), { mode: 0o600 });
+    await rename(temp, file);
+    return result;
+  });
+  queue = task.catch(() => undefined);
+  return task;
+}
+
+export function validDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+export function minutes(value: unknown): number {
+  if (typeof value !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return -1;
+  return Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+}
+export function dayOf(date: string) { return new Date(`${date}T12:00:00Z`).getUTCDay(); }
+export function addDays(date: string, days: number) { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); }
+export function active(session: Session) { return !session.status.startsWith("Cancelado") && session.status !== "Não Compareceu"; }
+export function checkSession(db: Database, session: Session, excludeId?: string): string | null {
+  if (!db.patients.some(p => p.id === session.patientId)) return "Selecione um paciente cadastrado.";
+  if (!validDate(session.date) || minutes(session.time) < 0) return "Data ou horário inválido.";
+  const start = minutes(session.time), end = start + session.duration;
+  const day = db.config.days[dayOf(session.date)];
+  if (!day?.active || start < minutes(day.start) || end > minutes(day.end)) return "Horário fora do expediente.";
+  if (db.blocks.some(b => b.date === session.date && start < minutes(b.end) && end > minutes(b.start))) return "Horário bloqueado.";
+  const overlapping = db.sessions.filter(s => s.id !== excludeId && active(s) && s.date === session.date && start < minutes(s.time) + s.duration && end > minutes(s.time));
+  if (overlapping.some(s => s.patientId === session.patientId)) return "Paciente já possui atendimento nesse período.";
+  if (overlapping.length >= db.config.capacity) return "Capacidade do horário esgotada.";
+  return null;
+}
+
+export function errorResponse(error: unknown) { return Response.json({ error: error instanceof Error ? error.message : "Erro inesperado." }, { status: 400 }); }
+export function requireObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Dados inválidos.");
+  return value as Record<string, unknown>;
+}
