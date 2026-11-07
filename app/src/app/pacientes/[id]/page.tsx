@@ -7,5 +7,5 @@ export default async function PatientRecordPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const query = await searchParams;
-  return <PatientRecord id={id} initialTab={query.aba === "evolucoes" ? "evolutions" : "overview"} initialDate={validDate(query.data) ? query.data : undefined} />;
+  return <PatientRecord id={id} initialTab={query.aba === "evolucoes" ? "evolutions" : query.aba === "laudos" ? "reports" : "overview"} initialDate={validDate(query.data) ? query.data : undefined} />;
 }

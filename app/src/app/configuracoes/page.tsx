@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ChangePassword, LogoutButton } from "../../components/account-actions";
 import { OwnerManagement } from "../../components/owner-management";
 import { SettingsSection } from "../../components/settings-section";
+import { Icon } from "../../components/icon";
 import type { Config, Location, Profile, Service } from "../../lib/store";
 
 type Data = { profile: Profile; locations: Location[]; services: Service[]; insurances: string[]; config: Config };
@@ -14,6 +16,8 @@ export default function SettingsPage() {
   const [notice, setNotice] = useState("");
   const [mustChange, setMustChange] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  const [isManager, setIsManager] = useState(false);
+  const [authLoaded, setAuthLoaded] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/settings", { cache: "no-store" });
@@ -21,11 +25,14 @@ export default function SettingsPage() {
     setData(await response.json());
   }, []);
   useEffect(() => {
-    load().catch(error => setNotice(error.message));
     fetch("/api/auth/me").then(response => response.json()).then(user => {
       setMustChange(!!user.mustChangePassword);
       setIsOwner(user.role === "owner");
-    }).catch(() => undefined);
+      const manager = user.role === "owner" || user.role === "physio" || user.role === "admin";
+      setIsManager(manager && !user.mustChangePassword);
+      if (manager && !user.mustChangePassword) load().catch(error => setNotice(error.message));
+      setAuthLoaded(true);
+    }).catch(() => { setNotice("Não foi possível carregar a conta."); setAuthLoaded(true); });
   }, [load]);
 
   async function save(body: Record<string, unknown>, message = "Configuração salva.") {
@@ -47,15 +54,18 @@ export default function SettingsPage() {
     <div className="page-heading"><div><p className="eyebrow">MEU ESPAÇO</p><h1>Configurações</h1><p className="muted">Abra uma seção para ajustar seu consultório.</p></div><LogoutButton /></div>
     {notice && <div className="success-message settings-toast" role="status"><span>{notice}</span><button type="button" className="icon-button" onClick={() => setNotice("")} aria-label="Fechar aviso">×</button></div>}
     {mustChange && <p className="agenda-alert settings-notice">Troque sua senha temporária para acessar o restante do sistema.</p>}
-    {data && <div className="settings-accordion-list">
+    {authLoaded && <div className="settings-accordion-list">
+      {isManager && <Link href="/configuracoes/usuarios" className="settings-users-link"><span className="settings-users-link-icon"><Icon name="patients" size={23} /></span><span><strong>Gerenciar usuários</strong><small>Cadastre pessoas da equipe e controle seus acessos</small></span><span aria-hidden="true">→</span></Link>}
       {isOwner && <OwnerManagement />}
 
+      {data && <>
       <SettingsSection icon="patients" title="Perfil profissional" description="Nome, registro e contato exibidos no seu espaço" meta={data.profile.displayName || "Não preenchido"}>
-        <form key={JSON.stringify(data.profile)} className="settings-form settings-form-grid" onSubmit={event => { const f = fields(event); save({ action: "profile", displayName: f.get("displayName"), registration: f.get("registration"), phone: f.get("phone"), email: f.get("email") }); }}>
+        <form key={JSON.stringify(data.profile)} className="settings-form settings-form-grid" onSubmit={event => { const f = fields(event); save({ action: "profile", displayName: f.get("displayName"), registration: f.get("registration"), phone: f.get("phone"), email: f.get("email"), pixKey: f.get("pixKey") }); }}>
           <label>Nome de exibição<input name="displayName" required maxLength={120} defaultValue={data.profile.displayName} /></label>
           <label>Registro profissional<input name="registration" maxLength={80} defaultValue={data.profile.registration} /></label>
           <label>Telefone<input name="phone" type="tel" maxLength={40} defaultValue={data.profile.phone} /></label>
           <label>E-mail profissional<input name="email" type="email" defaultValue={data.profile.email} /></label>
+          <label>Chave Pix para contratos de doulagem<input name="pixKey" maxLength={160} defaultValue={data.profile.pixKey || ""} placeholder="CPF, e-mail, telefone ou chave aleatória" /></label>
           <button className="primary">Salvar perfil</button>
         </form>
       </SettingsSection>
@@ -99,6 +109,7 @@ export default function SettingsPage() {
           <button className="primary">Salvar horários</button>
         </form>
       </SettingsSection>
+      </>}
 
       <SettingsSection key={mustChange ? "must-change" : "security"} icon="check" title="Segurança da conta" description="Altere sua senha de acesso" defaultOpen={mustChange}>
         <ChangePassword />

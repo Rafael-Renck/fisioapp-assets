@@ -1,7 +1,9 @@
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, rename, writeFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { readDb } from "./store";
+import { ensureDailyBackup, readDocument, writeDocument } from "./persistence";
 
 const scrypt = promisify(scryptCallback);
 const dataDir = process.env.FISIOAPP_DATA_DIR || path.join(process.cwd(), ".data");
@@ -10,29 +12,43 @@ const setupFile = path.join(dataDir, "setup-token");
 const cookieName = "fisioapp_session";
 const sessionAge = 7 * 24 * 60 * 60;
 
-export type Role = "owner" | "physio";
-export type User = { id: string; email: string; salt: string; passwordHash: string; role: Role; spaceId?: string; mustChangePassword?: boolean };
+export type Role = "owner" | "physio" | "admin" | "therapist" | "reception" | "staff" | "patient";
+export type TeamRole = "admin" | "therapist" | "reception";
+export const isManager = (role: Role) => role === "owner" || role === "physio" || role === "admin";
+export const canAccessClinical = (role: Role) => isManager(role) || role === "therapist" || role === "staff";
+export type User = { id: string; email: string; name?: string; salt: string; passwordHash: string; role: Role; spaceId?: string; patientId?: string; active?: boolean; createdAt?: string; mustChangePassword?: boolean; googleSub?: string };
 export type Space = { id: string; name: string; plan: string; status: "active" | "suspended"; createdAt: string };
 export type PlatformSettings = { brandName: string; supportEmail: string; defaultPlan: string };
-export type Platform = { users: User[]; spaces: Space[]; sessions: { tokenHash: string; userId: string; expiresAt: number }[]; settings: PlatformSettings };
-const defaults = (): Platform => ({ users: [], spaces: [], sessions: [], settings: { brandName: "FisioApp", supportEmail: "", defaultPlan: "Individual" } });
+export type PatientInvite = { tokenHash: string; spaceId: string; patientId: string; expiresAt: number };
+export async function getPatientLink(token: unknown) {
+  if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return null;
+  const platform = await readPlatform();
+  const link = (platform.patientInvites || []).find(item => item.tokenHash === createHash("sha256").update(token).digest("hex") && item.expiresAt > Date.now());
+  if (!link || platform.spaces.find(item => item.id === link.spaceId)?.status !== "active") return null;
+  const patient = (await readDb(link.spaceId)).patients.find(item => item.id === link.patientId && item.status !== "Arquivado" && item.status !== "Alta" && item.portalAccessActive);
+  return patient ? { spaceId: link.spaceId, patientId: link.patientId, patientName: patient.name } : null;
+}
+export type Platform = { users: User[]; spaces: Space[]; sessions: { tokenHash: string; userId: string; expiresAt: number }[]; patientInvites: PatientInvite[]; settings: PlatformSettings };
+const defaults = (): Platform => ({ users: [], spaces: [], sessions: [], patientInvites: [], settings: { brandName: "FisioApp", supportEmail: "", defaultPlan: "Individual" } });
 let queue: Promise<unknown> = Promise.resolve();
 
 export async function readPlatform(): Promise<Platform> {
-  try {
-    const saved = JSON.parse(await readFile(file, "utf8")) as Platform;
-    return { ...defaults(), ...saved, settings: { ...defaults().settings, ...saved.settings } };
-  } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaults(); throw error; }
+  const saved = (await readDocument<Platform>("platform", file, defaults)).value;
+  return { ...defaults(), ...saved, settings: { ...defaults().settings, ...saved.settings } };
 }
 export function updatePlatform<T>(change: (platform: Platform) => T | Promise<T>): Promise<T> {
   const task = queue.then(async () => {
-    const platform = await readPlatform();
-    const result = await change(platform);
-    await mkdir(dataDir, { recursive: true, mode: 0o700 });
-    const temporary = `${file}.${randomBytes(8).toString("hex")}.tmp`;
-    await writeFile(temporary, JSON.stringify(platform, null, 2), { mode: 0o600 });
-    await rename(temporary, file);
-    return result;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const current = await readDocument<Platform>("platform", file, defaults);
+      const saved = current.value;
+      const platform = { ...defaults(), ...saved, settings: { ...defaults().settings, ...saved.settings } };
+      const result = await change(platform);
+      if (await writeDocument("platform", current.version, platform)) {
+        await ensureDailyBackup().catch(error => console.error("Falha no backup diário:", error));
+        return result;
+      }
+    }
+    throw new Error("Os dados foram alterados simultaneamente. Tente novamente.");
   });
   queue = task.catch(() => undefined);
   return task;
@@ -77,7 +93,7 @@ export async function getSession(request: Request): Promise<{ user: User; space?
   const session = platform.sessions.find(s => s.tokenHash === tokenHash(token) && s.expiresAt > Date.now());
   if (!session) return null;
   let user = platform.users.find(u => u.id === session.userId);
-  if (!user) return null;
+  if (!user || user.active === false) return null;
   const currentSpaceId = user.spaceId;
   let space = currentSpaceId ? platform.spaces.find(s => s.id === currentSpaceId) : undefined;
   if (user.role === "owner" && !space) {
@@ -96,17 +112,30 @@ export async function getSession(request: Request): Promise<{ user: User; space?
     user = migrated.owner;
     space = migrated.ownSpace;
   }
-  if (user.role === "physio" && (!space || space.status !== "active")) return null;
+  if (user.role !== "owner" && (!space || space.status !== "active")) return null;
+  if (user.role === "patient") {
+    if (!user.patientId || !space) return null;
+    const patient = (await readDb(space.id)).patients.find(item => item.id === user.patientId);
+    if (!patient || (patient.status === "Arquivado" || patient.status === "Alta") || !patient.portalAccessActive) return null;
+  }
   return { user, space };
 }
-export function publicUser(user: User, space?: Space) { return { id: user.id, email: user.email, role: user.role, spaceId: user.spaceId, spaceName: space?.name, mustChangePassword: !!user.mustChangePassword }; }
+export function publicUser(user: User, space?: Space) { return { id: user.id, email: user.email, name: user.name || "", role: user.role, spaceId: user.spaceId, patientId: user.patientId, spaceName: space?.name, mustChangePassword: !!user.mustChangePassword }; }
 export async function physioSpace(request: Request) {
   const session = await getSession(request);
-  return session && !session.user.mustChangePassword ? session.space?.id || null : null;
+  return session && session.user.role !== "patient" && !session.user.mustChangePassword ? session.space?.id || null : null;
+}
+export async function clinicalSpace(request: Request) {
+  const session = await getSession(request);
+  return session && canAccessClinical(session.user.role) && !session.user.mustChangePassword ? session.space?.id || null : null;
 }
 export async function settingsSpace(request: Request) {
   const session = await getSession(request);
-  return session?.space?.id || null;
+  return session && isManager(session.user.role) && !session.user.mustChangePassword ? session.space?.id || null : null;
+}
+export async function patientContext(request: Request) {
+  const session = await getSession(request);
+  return session?.user.role === "patient" && session.space && session.user.patientId ? { spaceId: session.space.id, patientId: session.user.patientId } : null;
 }
 export function forbidden() { return noStore(Response.json({ error: "Acesso não autorizado." }, { status: 401 })); }
 export async function ensureSetupToken() {

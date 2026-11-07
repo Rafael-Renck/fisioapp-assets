@@ -9,9 +9,9 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const result = await updateDb(id, db => {
       if (body.action === "profile") {
-        const displayName = String(body.displayName || "").trim(), registration = String(body.registration || "").trim(), phone = String(body.phone || "").trim(), email = String(body.email || "").trim();
-        if (!displayName || displayName.length > 120 || registration.length > 80 || phone.length > 40 || email.length > 254) throw new Error("Dados do perfil inválidos.");
-        db.profile = { displayName, registration, phone, email }; return db.profile;
+        const displayName = String(body.displayName || "").trim(), registration = String(body.registration || "").trim(), phone = String(body.phone || "").trim(), email = String(body.email || "").trim(), pixKey = String(body.pixKey || "").trim();
+        if (!displayName || displayName.length > 120 || registration.length > 80 || phone.length > 40 || email.length > 254 || pixKey.length > 160) throw new Error("Dados do perfil inválidos.");
+        db.profile = { ...db.profile, displayName, registration, phone, email, pixKey }; return db.profile;
       }
       if (body.action === "location") {
         const name = String(body.name || "").trim(), address = String(body.address || "").trim();

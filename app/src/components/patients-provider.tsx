@@ -4,12 +4,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Patient } from "../lib/store";
 
 export type { Patient };
-type PatientInput = Omit<Patient, "id" | "createdAt" | "updatedAt" | "portalAccessActive" | "status">;
+type PatientInput = Omit<Patient, "id" | "createdAt" | "updatedAt" | "portalAccessActive" | "dischargedAt" | "status">;
 type PatientsContext = {
   patients: Patient[];
   addPatient: (patient: PatientInput) => Promise<Patient>;
   updatePatient: (id: string, patient: PatientInput) => Promise<Patient>;
   setArchived: (id: string, archived: boolean) => Promise<Patient>;
+  setDischarged: (id: string, discharged: boolean) => Promise<Patient>;
 };
 const Context = createContext<PatientsContext | null>(null);
 
@@ -37,7 +38,14 @@ export function PatientsProvider({ children }: { children: ReactNode }) {
     setPatients(current => current.map(item => item.id === id ? saved : item));
     return saved as Patient;
   }
-  return <Context.Provider value={{ patients, addPatient, updatePatient, setArchived }}>{children}</Context.Provider>;
+  async function setDischarged(id: string, discharged: boolean) {
+    const response = await fetch("/api/patients", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, discharged }) });
+    const saved = await response.json();
+    if (!response.ok) throw new Error(saved.error || "Não foi possível atualizar a alta.");
+    setPatients(current => current.map(item => item.id === id ? saved : item));
+    return saved as Patient;
+  }
+  return <Context.Provider value={{ patients, addPatient, updatePatient, setArchived, setDischarged }}>{children}</Context.Provider>;
 }
 
 export function usePatients() {

@@ -1,5 +1,5 @@
-import { active, addDays, checkSession, dayOf, errorResponse, minutes, readDb, requireObject, statuses, updateDb, validDate, type Block, type Config, type Session, type Status } from "../../../lib/store";
-import { forbidden, physioSpace } from "../../../lib/platform";
+import { active, addDays, checkSession, dayOf, errorResponse, isInsuranceSession, minutes, readDb, requireObject, statuses, updateDb, validDate, type Block, type Config, type Session, type Status } from "../../../lib/store";
+import { forbidden, getSession, isManager, physioSpace } from "../../../lib/platform";
 
 export const runtime = "nodejs";
 export async function GET(request: Request) { const spaceId = await physioSpace(request); if (!spaceId) return forbidden(); const { sessions, blocks, config, locations, services, insurances } = await readDb(spaceId); return Response.json({ sessions, blocks, config, locations, services, insurances }, { headers: { "Cache-Control": "no-store" } }); }
@@ -7,12 +7,15 @@ export async function POST(request: Request) {
   const spaceId = await physioSpace(request); if (!spaceId) return forbidden();
   try {
     const body = requireObject(await request.json());
+    if (body.action === "config" && !isManager((await getSession(request))!.user.role)) return forbidden();
+    const actor = await getSession(request);
     const result = await updateDb(spaceId, db => {
       switch (body.action) {
         case "book": {
           const patientId = String(body.patientId || ""), date = String(body.date || ""), time = String(body.time || ""), notes = String(body.notes || "").trim();
-          const locationId = String(body.locationId || ""), serviceId = String(body.serviceId || ""), insurance = String(body.insurance || "").trim();
+          const locationId = String(body.locationId || ""), serviceId = String(body.serviceId || ""), insurance = String(body.insurance || "").trim(), authorizationCode = String(body.authorizationCode || "").trim();
           if (notes.length > 2000) throw new Error("Observações muito longas.");
+          if (authorizationCode.length > 80) throw new Error("Número da guia ou senha de autorização muito longo.");
           if (db.locations.some(location => location.active) && !locationId) throw new Error("Selecione um local de atendimento.");
           if (db.services.some(service => service.active) && !serviceId) throw new Error("Selecione um tipo de atendimento.");
           if (db.insurances.length && !insurance) throw new Error("Selecione um convênio.");
@@ -31,7 +34,7 @@ export async function POST(request: Request) {
           for (let offset = 0; proposed.length < count && offset < 7 * 260; offset++) {
             const currentDate = addDays(date, offset);
             if (count > 1 && !days.includes(dayOf(currentDate))) continue;
-            const session: Session = { id: crypto.randomUUID(), patientId, date: currentDate, time, duration: service?.duration || db.config.duration, notes, status: "Agendado", recurrenceId, locationId, serviceId, insurance };
+            const session: Session = { id: crypto.randomUUID(), patientId, date: currentDate, time, duration: service?.duration || db.config.duration, notes, status: "Agendado", recurrenceId, locationId, serviceId, insurance, authorizationCode };
             const conflict = checkSession({ ...db, sessions: [...db.sessions, ...proposed] }, session);
             if (conflict) throw new Error(`${currentDate}: ${conflict} Nenhuma sessão foi criada.`);
             proposed.push(session);
@@ -42,14 +45,41 @@ export async function POST(request: Request) {
         case "status": {
           const session = db.sessions.find(s => s.id === body.id);
           if (!session || !statuses.includes(body.status as Status)) throw new Error("Sessão ou status inválido.");
+          if (db.patients.find(patient => patient.id === session.patientId)?.status === "Alta") throw new Error("Atendimentos de pacientes com alta são somente para consulta.");
           if (!active(session) && !String(body.status).startsWith("Cancelado") && body.status !== "Não Compareceu") {
             const conflict = checkSession(db, session, session.id); if (conflict) throw new Error(conflict);
           }
-          session.status = body.status as Status; return session;
+          session.status = body.status as Status;
+          if (session.status !== "Realizado") delete session.paymentReview;
+          return session;
+        }
+        case "authorization": {
+          const session = db.sessions.find(s => s.id === body.id);
+          if (!session) throw new Error("Sessão não encontrada.");
+          if (db.patients.find(patient => patient.id === session.patientId)?.status === "Alta") throw new Error("Atendimentos de pacientes com alta são somente para consulta.");
+          const authorizationCode = String(body.authorizationCode || "").trim();
+          if (authorizationCode.length > 80) throw new Error("Número da guia ou senha de autorização muito longo.");
+          if (session.authorizationCode !== authorizationCode) delete session.paymentReview;
+          session.authorizationCode = authorizationCode;
+          return session;
+        }
+        case "paymentReview": {
+          const session = db.sessions.find(s => s.id === body.id);
+          if (!session) throw new Error("Sessão não encontrada.");
+          if (session.status !== "Realizado" || !isInsuranceSession(session) || !session.authorizationCode?.trim()) throw new Error("A conferência exige atendimento realizado, convênio e guia preenchida.");
+          const status = String(body.status || "");
+          if (status === "Pendente") { delete session.paymentReview; return session; }
+          if (status !== "Conferido" && status !== "Divergente") throw new Error("Situação de pagamento inválida.");
+          const rawAmount = String(body.amount || "").trim();
+          if (rawAmount && !/^\d{1,7}(?:,\d{1,2})?$/.test(rawAmount)) throw new Error("Informe o valor em reais, por exemplo 120,50.");
+          const amount = rawAmount ? Number(rawAmount.replace(",", ".")) : null;
+          session.paymentReview = { status, amountCents: amount === null ? null : Math.round(amount * 100), reviewedAt: new Date().toISOString(), reviewedBy: actor?.user.id || "" };
+          return session;
         }
         case "reschedule": {
           const session = db.sessions.find(s => s.id === body.id);
           if (!session) throw new Error("Sessão não encontrada.");
+          if (db.patients.find(patient => patient.id === session.patientId)?.status === "Alta") throw new Error("Atendimentos de pacientes com alta são somente para consulta.");
           const next = { ...session, date: String(body.date || ""), time: String(body.time || "") };
           const conflict = checkSession(db, next, session.id);
           if (conflict) throw new Error(conflict);

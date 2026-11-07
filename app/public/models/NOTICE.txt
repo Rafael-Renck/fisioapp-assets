@@ -1,0 +1,22 @@
+Stanford female pelvic anatomy (stanford-female-pelvis.glb)
+======================================================
+Original work: "Female Reproductive System" by Stanford EdTech Team.
+https://sketchfab.com/3d-models/female-reproductive-system-c4d5e725198d4a1997c641d548bb20ce
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Source adaptation: OBGynSpace pelvic anatomy (pelvis.bin and tex/*.jpg).
+https://obgynspace.com/anatomy
+https://obgynspace.com/models/NOTICE.txt
+Its NOTICE documents the original Stanford model and changes: centimeter scaling, separated meshes, quantized coordinates, and reduced textures.
+
+FisioApp changes: scripts/prepare-pelvis-model.py converts the OBGynSpace binary container to glTF 2.0 and embeds its textures. The simulator changes visibility, opacity, position and scale at runtime. The educational movements are illustrative and are not validated physiological simulations.
+
+Term fetus (term-fetus.glb)
+===========================
+Original work: "Fetus" by gelmi.com.br.
+https://sketchfab.com/3d-models/fetus-cdbadf8ba54e44ec9533a546dcd52830
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+Source adaptation: OBGynSpace embryo.bin, part fetus3t, as documented in https://obgynspace.com/models/NOTICE.txt.
+FisioApp changes: scripts/prepare-birth-model.py converts this mesh to glTF 2.0 and computes vertex normals. The scene applies rigid transforms to illustrate descent and rotation. It does not model fetal articulation or tissue deformation.

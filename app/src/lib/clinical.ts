@@ -1,4 +1,4 @@
-import { requireObject, validDate, type AnamnesisData, type EvolutionData, type TreatmentPlanData } from "./store";
+import { requireObject, validDate, type AnamnesisData, type ClinicalReportData, type EvolutionData, type TreatmentPlanData } from "./store";
 
 function field(input: Record<string, unknown>, key: string, label: string, max = 5000) {
   const value = input[key];
@@ -50,4 +50,21 @@ export function parsePlan(value: unknown): TreatmentPlanData {
     return { description, frequency, dosage };
   });
   return { diagnosis, startDate, reviewDate, status: status as TreatmentPlanData["status"], goals: input.goals.map(item => String(item).trim()).filter(Boolean), interventions };
+}
+
+export function parseClinicalReport(value: unknown): ClinicalReportData {
+  const input = requireObject(value);
+  const data = {
+    title: field(input, "title", "Título", 160),
+    date: field(input, "date", "Data do laudo", 10),
+    purpose: field(input, "purpose", "Finalidade", 3000),
+    assessment: field(input, "assessment", "Avaliação", 10000),
+    findings: field(input, "findings", "Achados clínicos", 10000),
+    conclusion: field(input, "conclusion", "Conclusão", 10000),
+    recommendations: field(input, "recommendations", "Orientações", 10000),
+    professionalName: field(input, "professionalName", "Nome do profissional", 160),
+    professionalRegistration: field(input, "professionalRegistration", "Registro profissional", 80),
+  };
+  if (!data.title || !validDate(data.date) || !data.assessment || !data.conclusion || !data.professionalName || !data.professionalRegistration) throw new Error("Informe título, data, avaliação, conclusão, nome e registro profissional.");
+  return data;
 }

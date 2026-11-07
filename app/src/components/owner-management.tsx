@@ -54,15 +54,15 @@ export function OwnerManagement() {
     finally { setBusy(false); }
   }
 
-  return <SettingsSection icon="patients" title="Fisioterapeutas" description="Crie e gerencie os acessos dos profissionais" meta={`${data?.spaces.length || 0} cadastrado(s)`}>
-    <p className="muted">Cada fisioterapeuta acessa somente seus próprios pacientes e sua agenda.</p>
+  return <SettingsSection icon="home" title="Consultórios independentes" description="Crie espaços separados para outros fisioterapeutas" meta={`${data?.spaces.length || 0} cadastrado(s)`}>
+    <p className="muted">Cada consultório tem pacientes e agenda próprios. Para adicionar pessoas à sua equipe, use Gerenciar usuários acima.</p>
     {notice && <p role="status" className="success-message">{notice}</p>}
     <form className="settings-form" onSubmit={create}>
       <label>Nome do espaço<input name="name" required maxLength={120} placeholder="Consultório Ana Lima" /></label>
       <label>E-mail de acesso<input name="email" type="email" required /></label>
       <label>Senha temporária<input name="password" type="password" minLength={12} required autoComplete="new-password" /><small>O profissional deverá trocá-la no primeiro acesso.</small></label>
       {data?.legacyAvailable && <label className="check-row"><input name="legacy" type="checkbox" /> Usar neste espaço os dados antigos do sistema</label>}
-      <button className="primary" disabled={busy}>Criar login</button>
+      <button className="primary" disabled={busy}>Criar consultório</button>
     </form>
     <h3>Logins cadastrados</h3>
     {data?.spaces.length ? <div className="settings-list">{data.spaces.map(space => <div className="settings-item" key={space.id}><div><strong>{space.name}</strong><p>{space.email} · {space.status === "active" ? "Ativo" : "Suspenso"}</p></div><button className="secondary" disabled={busy} onClick={() => changeStatus(space)}>{space.status === "active" ? "Suspender" : "Reativar"}</button></div>)}</div> : <p className="muted">Nenhum fisioterapeuta cadastrado.</p>}
