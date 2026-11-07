@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { DoulaContract } from "../../../../lib/store";
 import { defaultDoulaServices } from "../../../../lib/doula";
 import { DocumentEndmark, DocumentLetterhead } from "../../../../components/printable-document";
+import { PdfDocumentActions } from "../../../../components/pdf-document-actions";
 
 const money = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 const dateLabel = (date: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", day: "2-digit", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00Z`));
@@ -29,9 +30,10 @@ export default function DoulaDocumentPage() {
   if (!d) return <div className="doula-document-page"><Link href="/doulagem">← Voltar à doulagem</Link><p>Este contrato foi cadastrado antes da inclusão do modelo. Cadastre um novo contrato para gerar o documento.</p></div>;
   const contractedServices = contract.services?.length ? contract.services : defaultDoulaServices;
   const installmentText = contract.installments.length ? contract.installments.map((part, index) => `${index + 1}ª parcela de ${money(part.amountCents)}, com vencimento em ${dateLabel(part.dueDate)}`).join("; ") : "Não há parcelas pendentes";
+  const pdfFilename = `contrato-doulagem-${d.clientName || "paciente"}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "").toLowerCase() + ".pdf";
   return <div className="doula-document-page">
-    <div className="doula-document-toolbar"><Link href="/doulagem">← Voltar à doulagem</Link><button className="primary" onClick={() => window.print()}>Imprimir ou salvar em PDF</button></div>
-    <article className="doula-document printable-document">
+    <div className="doula-document-toolbar"><Link href="/doulagem">← Voltar à doulagem</Link><PdfDocumentActions targetId="doula-contract-document" filename={pdfFilename} /></div>
+    <article id="doula-contract-document" className="doula-document printable-document">
       <DocumentLetterhead type="Contrato de serviços" title="Contrato de prestação de serviços de doulagem" subtitle={`Firmado em ${d.city || "Recife"}, ${dateLabel(d.contractDate)}`} />
       <div className="document-parties"><section><span>CONTRATANTE</span><h2>{d.clientName}</h2><dl><div><dt>CPF</dt><dd>{d.clientCpf || "________________"}</dd></div><div><dt>RG</dt><dd>{d.clientRg || "________________"}</dd></div><div><dt>Endereço</dt><dd>{d.clientAddress || "________________"}</dd></div><div><dt>Telefone</dt><dd>{d.clientPhone || "________________"}</dd></div><div><dt>E-mail</dt><dd>{d.clientEmail || "________________"}</dd></div></dl></section><section><span>DOULA / CONTRATADA</span><h2>{d.doulaName}</h2><dl><div><dt>CPF</dt><dd>{d.doulaCpf || "________________"}</dd></div><div><dt>RG</dt><dd>{d.doulaRg || "________________"}</dd></div><div><dt>Endereço</dt><dd>{d.doulaAddress || "________________"}</dd></div><div><dt>Telefone</dt><dd>{d.doulaPhone || "________________"}</dd></div><div><dt>E-mail</dt><dd>{d.doulaEmail || "________________"}</dd></div></dl></section><div className="document-backup"><strong>Doula backup</strong><span>{d.backupName || "________________"} · Telefone: {d.backupPhone || "________________"}</span></div></div>
       <h2>NÃO É PAPEL DA DOULA</h2>
